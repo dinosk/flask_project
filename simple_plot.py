@@ -11,10 +11,14 @@ import astropy
 from astropy.io import fits
 from astropy import units as u
 from astropy import table
-import pdb
+#import bokeh.mpl
+#import mpld3
 plt.rcParams['figure.figsize'] = (12,8)
 
-def plotData(NQuery,table,FigureStrBase,SurfMin,SurfMax,VDispMin,VDispMax,RadMin,RadMax) :
+def plotData(NQuery, table, FigureStrBase, SurfMin=1e-1*u.M_sun/u.pc**2,
+             SurfMax=1e5*u.M_sun/u.pc**2, VDispMin=1e-1*u.km/u.s,
+             VDispMax=3e2*u.km/u.s, RadMin=1e-2*u.pc, RadMax=1e3*u.pc,):
+ 
     """
     This is where documentation needs to be added
 
@@ -32,7 +36,9 @@ def plotData(NQuery,table,FigureStrBase,SurfMin,SurfMax,VDispMin,VDispMax,RadMin
     RadMax
     """
     
-    plt.clf()
+    figure = plt.figure(1)
+    figure.clf()
+    ax = figure.gca()
 
     # d = table.Table.read("merged_table.ipac", format='ascii.ipac')
     d = table
@@ -41,7 +47,10 @@ def plotData(NQuery,table,FigureStrBase,SurfMin,SurfMax,VDispMin,VDispMax,RadMin
     SurfDens = d['SurfaceDensity']
     VDisp = d['VelocityDispersion']
     Rad = d['Radius']
-    IsSim = (d['IsSimulated'] == 'True')
+    if d['IsSimulated'].dtype == 'bool':
+        IsSim = d['IsSimulated']
+    else:
+        IsSim = d['IsSimulated'] == 'True'
     
     UseSurf = (SurfDens > SurfMin) & (SurfDens < SurfMax)
     UseVDisp = (VDisp > VDispMin) & (VDisp < VDispMax)
@@ -53,49 +62,59 @@ def plotData(NQuery,table,FigureStrBase,SurfMin,SurfMax,VDispMin,VDispMax,RadMin
     UniqueAuthor = set(Author[Use])
     NUniqueAuthor = len(UniqueAuthor)
     
+    #print d
+    #print d[Use]
+    #print 'Authors:', UniqueAuthor
+    
     #colors = random.sample(matplotlib.colors.cnames, NUniqueAuthor)
     colors = list(plt.cm.jet(np.linspace(0,1,NUniqueAuthor)))
     random.shuffle(colors)
     
-    plt.loglog()
+    ax.loglog()
     markers = ['o','s']
     for iAu,color in zip(UniqueAuthor,colors) :
         UsePlot = (Author == iAu) & Use
         ObsPlot = ((Author == iAu) & (~IsSim)) & Use 
         SimPlot = ((Author == iAu) & (IsSim)) & Use
         if any(ObsPlot):
-            plt.scatter(SurfDens[ObsPlot], VDisp[ObsPlot], marker=markers[0],
+            ax.scatter(SurfDens[ObsPlot], VDisp[ObsPlot], marker=markers[0],
                         s=(np.log(np.array(Rad[ObsPlot]))-np.log(np.array(RadMin))+0.5)**3.,
                         color=color, alpha=0.5)
         if any(SimPlot):
-            plt.scatter(SurfDens[SimPlot], VDisp[SimPlot], marker=markers[1],
+            ax.scatter(SurfDens[SimPlot], VDisp[SimPlot], marker=markers[1],
                         s=(np.log(np.array(Rad[SimPlot]))-np.log(np.array(RadMin))+0.5)**3.,
                         color=color, alpha=0.5)
     if any(Obs):
-        plt.scatter(SurfDens[Obs], VDisp[Obs], marker=markers[0],
+        ax.scatter(SurfDens[Obs], VDisp[Obs], marker=markers[0],
                     s=(np.log(np.array(Rad[Obs]))-np.log(np.array(RadMin))+0.5)**3.,
                     facecolors='none', edgecolors='black',
                     alpha=0.5)
     if any(Sim):
-        plt.scatter(SurfDens[Sim], VDisp[Sim], marker=markers[1],
+        ax.scatter(SurfDens[Sim], VDisp[Sim], marker=markers[1],
                     s=(np.log(np.array(Rad[Sim]))-np.log(np.array(RadMin))+0.5)**3.,
                     facecolors='none', edgecolors='black',
                     alpha=0.5)
-    plt.xlabel('$\Sigma$ [M$_{\odot}$ pc$^{-2}$]', fontsize=16)
-    plt.ylabel('$\sigma$ [km s$^{-1}$]', fontsize=16)
+    ax.set_xlabel('$\Sigma$ [M$_{\odot}$ pc$^{-2}$]', fontsize=16)
+    ax.set_ylabel('$\sigma$ [km s$^{-1}$]', fontsize=16)
 
-    ax = plt.gca()
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    #html_bokeh = bokeh.mpl.to_bokeh(fig=figure, name="bokeh_"+FigureStrBase+NQuery)
+    #html = mpld3.fig_to_html(figure)
+    #with open("mpld3_"+FigureStrBase+NQuery+'.html','w') as f:
+    #    f.write(html)
+
+    ax.set_xlim((SurfMin.to(u.M_sun/u.pc**2).value,SurfMax.to(u.M_sun/u.pc**2).value))
+    ax.set_ylim((VDispMin.to(u.km/u.s).value,VDispMax.to(u.km/u.s).value))
 
     # Put a legend to the right of the current axis
     ax.legend(UniqueAuthor, loc='center left', bbox_to_anchor=(1.0, 0.5), prop={'size':12}, markerscale = .7, scatterpoints = 1)
 
-    plt.xlim((SurfMin.to(u.M_sun/u.pc**2).value,SurfMax.to(u.M_sun/u.pc**2).value))
-    plt.ylim((VDispMin.to(u.km/u.s).value,VDispMax.to(u.km/u.s).value))
     plt.show()
-    plt.savefig(FigureStrBase+NQuery+'.png',bbox_inches='tight',dpi=150)
-    plt.savefig(FigureStrBase+NQuery+'.pdf',bbox_inches='tight',dpi=150)
+    figure.savefig(FigureStrBase+NQuery+'.png',bbox_inches='tight',dpi=150)
+    figure.savefig(FigureStrBase+NQuery+'.pdf',bbox_inches='tight',dpi=150)
+    return FigureStrBase+NQuery+'.png'#, html, html_bokeh
     
 def clearPlotOutput(FigureStrBase,TooOld) :
     
@@ -109,21 +128,14 @@ def timeString() :
     TimeString=datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")
     return TimeString
 
-SurfMin = 1e-1*u.M_sun/u.pc**2
-SurfMax = 1e5*u.M_sun/u.pc**2
-VDispMin = 1e-1*u.km/u.s
-VDispMax = 3e2*u.km/u.s
-RadMin = 1e-2*u.pc
-RadMax = 1e3*u.pc
-
-NQuery=timeString()
-FigureStrBase='Output_Sigma_sigma_r_'
-TooOld=300
-
-clearPlotOutput(FigureStrBase,TooOld)
-
-plotData(NQuery,FigureStrBase,SurfMin,SurfMax,VDispMin,VDispMax,RadMin,RadMax)
-
-#d.show_in_browser(jsviewer=True)
-
-
+# NQuery=timeString()
+# FigureStrBase='Output_Sigma_sigma_r_'
+# TooOld=300
+# 
+# clearPlotOutput(FigureStrBase,TooOld)
+# 
+# plotData(NQuery,FigureStrBase,SurfMin,SurfMax,VDispMin,VDispMax,RadMin,RadMax)
+# 
+# #d.show_in_browser(jsviewer=True)
+# 
+# 
